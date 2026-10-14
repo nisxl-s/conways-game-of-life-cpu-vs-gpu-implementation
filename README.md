@@ -6,11 +6,9 @@
 [![Speedup](https://img.shields.io/badge/Speedup-99.9%C3%97%20Kernel%20%7C%2080.1%C3%97%20End--to--End-brightgreen)](#performance-benchmarks--speedup-analysis)
 [![Verification](https://img.shields.io/badge/Verification-CPU%20%3D%3D%20GPU%20(0%20differing%20cells)-success)](#correctness-verification)
 
-> **Coursework**: CCS3032 - High-Performance Computing  
-> **Degree**: B.Comp (Hons.) in Computer Science  
+> **Coursework**: CCS3032 - High Performance Computing  
 > **Institution**: Faculty of Computing, University of Sri Jayewardenepura  
-> **Instructor**: Dr. Budditha Hettige  
-> **Team**: Group 39
+> **Author**: Nisal Sanjaya
 
 ---
 
@@ -150,8 +148,7 @@ The start grid is pseudo-random with about 30% live cells. Each cell value comes
 ├── presentation/
 │   └── Conways-Game-of-Life-CPU-vs-GPU-Presentation-Group-39.pptx  # Project presentation
 ├── report/
-│   ├── GameOfLife_HPC_Report_Group_39.pdf           # Technical report (PDF)
-│   └── GameOfLife_HPC_Report_v5.docx                # Technical report source (DOCX)
+│   └── GameOfLife_HPC_Report_Group_39.pdf           # Technical report
 └── README.md                                       # Project overview
 ```
 
@@ -259,15 +256,11 @@ These checks show that the CUDA programs reproduce the CPU program exactly for t
 
 ---
 
-## Authors & Acknowledgments
+## Author
 
+* **Author**: Nisal Sanjaya
 * **Institution**: Faculty of Computing, University of Sri Jayewardenepura
-* **Degree**: B.Comp (Hons.) in Computer Science
-* **Course**: CCS3032 - High-Performance Computing
-* **Course Lecturer**: Dr. Budditha Hettige
-* **Group**: Group 39
-  * **Y.R. Nisal Sanjaya** — Index: `FC221050` | Reg: `FC116340`
-  * **M.D.S.H. Edirisinghe** — Index: `FC221012` | Reg: `FC115262`
+* **Course**: CCS3032 - High Performance Computing
 
 ---
 
