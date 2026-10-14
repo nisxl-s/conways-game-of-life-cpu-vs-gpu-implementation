@@ -6,8 +6,10 @@
 [![Speedup](https://img.shields.io/badge/Speedup-99.9%C3%97%20Kernel%20%7C%2080.1%C3%97%20End--to--End-brightgreen)](#performance-benchmarks--speedup-analysis)
 [![Verification](https://img.shields.io/badge/Verification-CPU%20%3D%3D%20GPU%20(0%20differing%20cells)-success)](#correctness-verification)
 
-> **Coursework**: CCS3032 - High Performance Computing  
+> **Coursework**: CCS3032 - High-Performance Computing  
+> **Degree**: B.Comp (Hons.) in Computer Science  
 > **Institution**: Faculty of Computing, University of Sri Jayewardenepura  
+> **Instructor**: Dr. Budditha Hettige  
 > **Team**: Group 39
 
 ---
@@ -26,7 +28,7 @@ In this project we simulate a **2048 × 2048 toroidal grid (4,194,304 cells per 
 
 * **99.9× kernel speedup**: the naive CUDA kernel runs 100 generations in **18.97 ms** (0.190 ms per generation) against **1,894.3 ms** for the CPU.
 * **80.1× end-to-end speedup**: including the copy of the grid to the GPU and back, the naive CUDA program needs **23.64 ms** in total.
-* **Tiling did not help on the T4**: the shared-memory kernel was **23.5% slower** than the naive kernel (23.44 ms vs 18.97 ms), giving 80.8× kernel and 67.3× end-to-end speedup.
+* **Tiling did not help on the T4**: the shared-memory kernel was **23.5% slower** than the naive kernel (23.44 ms vs 18.97 ms; 22%–26% slower in individual runs), giving 80.8× kernel and 67.3× end-to-end speedup.
 * **Identical results**: the final CPU and GPU grids are identical (0 differing cells), the two CUDA kernels give identical grids, and 51 of 51 saved animation frame pairs are identical.
 
 ---
@@ -64,6 +66,7 @@ CUDA tiled (total)     28.2 ms   (kernel 23.4 ms + copies 4.7 ms)
 | 4 | 1940.0 | 18.154 | 22.654 | 22.949 | 27.769 |
 | 5 | 1925.0 | 18.807 | 23.399 | 22.945 | 27.632 |
 | **Mean** | **1894.3** | **18.971** | **23.642** | **23.437** | **28.155** |
+| **Range (Min – Max)** | **1826.6 – 1940.0** | **18.154 – 19.547** | **22.654 – 24.306** | **22.945 – 23.942** | **27.632 – 28.649** |
 
 ### Run-to-Run Variation
 
@@ -76,19 +79,39 @@ Variation = slowest run minus fastest run, as a percentage of the mean:
 ### Copy Overhead and Memory Traffic
 
 * **Host-device copies** (grid to GPU and result back) take about **4.7 ms**, which is about 20% of the naive total and 17% of the tiled total. During the 100 generations no data is copied: the two device buffers are swapped by pointer.
-* **Effective bandwidth** (derived, not measured with a profiler): each generation reads and writes 4,194,304 bytes, so about 8.4 MB per generation and 839 MB for 100 generations. At 19.0 ms this is about 44 GB/s, roughly 14% of the T4's 320 GB/s peak memory bandwidth.
+* **Effective bandwidth** (derived, not measured with a profiler): each generation reads and writes 4,194,304 bytes, so about 8.4 MB per generation and 839 MB for 100 generations. At 19.0 ms this is about 44 GB/s (46 GB/s for the fastest run), roughly 14% of the T4's 320 GB/s peak memory bandwidth.
+* **Instruction-bound vs. memory-bound**: Because each thread issues nine 1-byte loads, one store, and index calculations, the simulation is primarily limited by the instruction count per cell rather than raw memory bandwidth.
 
 ---
 
 ## Naive vs Tiled: Why Tiling Did Not Help
 
-The tiled kernel is the textbook optimization for stencils, yet on the Tesla T4 it was **23.5% slower** than the naive kernel (the naive kernel needs about 19% less time). The following reasons are plausible but **were not confirmed with a profiler** (for example Nsight Compute):
+The tiled kernel is the textbook optimization for stencils, yet on the Tesla T4 it was **23.5% slower** than the naive kernel (the naive kernel needs about 19% less time). Across individual runs, it was between 22% and 26% slower:
 
 1. **Caches already serve the overlapping reads.** Neighbouring threads read overlapping cells, and the L1 and L2 caches on Turing absorb most of this reuse. Reads are coalesced because adjacent threads in a row read adjacent bytes (a warp of 32 threads covers two rows of 16 cells, so it reads two short contiguous segments).
-2. **The tile has extra loading work.** A block of 256 threads must load 324 cells (256 + 68 halo cells), with a loop and a modulo operation for the toroidal wrap-around.
+2. **The tile has extra loading work.** A block of 256 threads must load 324 cells (256 + 68 halo cells), with a loop and integer division / modulo operations for the toroidal wrap-around.
 3. **Synchronization.** `__syncthreads()` is needed after loading the tile, and warps wait at the barrier.
 
-The tile reduces global loads per cell from 9 to about 1.27, but with a 1-byte cell and a 4 MB grid the cache hierarchy appears to make that saving small compared with the added work. On older GPUs with smaller caches tiling is expected to pay off more.
+The tile reduces global loads per cell from 9 to about 1.27, but with a 1-byte cell and a 4 MB grid the cache hierarchy makes that saving small compared with the added work. On older GPUs with smaller caches, tiling is expected to pay off more.
+
+---
+
+## Technical Architecture Comparison
+
+The following table summarizes the structural and design differences between the two implementations (based on Section 7.4 of the technical report):
+
+| Aspect | CPU (2D arrays in C) | GPU (CUDA) |
+| :--- | :--- | :--- |
+| **Execution model** | Sequential, single thread, nested row-major loops | Data-parallel (SIMT), one thread per cell |
+| **Parallelism** | None (single-threaded baseline) | 4,194,304 threads across 16,384 blocks (16 × 16), executed in 32-thread warps |
+| **Memory hierarchy** | Registers & CPU L1/L2/L3 caches (hardware-managed), then host DRAM | Registers, shared memory (programmer-managed), L1/L2 caches, global device memory |
+| **Data layout** | True 2D array, `cur[r][c]` | Flat 1D row-major array, `in[r * N + c]` |
+| **Memory access** | Sequential along rows, optimized for hardware prefetching | Coalesced across adjacent threads of a warp |
+| **Boundary handling** | Toroidal wrap indices calculated once per row and column | Wrap calculated per thread, or during cooperative tile load |
+| **Synchronization** | None required | Block barrier `__syncthreads()` (tiled kernel); implicit between generation kernel launches |
+| **Data movement** | In-place, stays in host DRAM (pointer swap) | Single H2D copy at start, single D2H copy at end; device buffer pointers swapped |
+| **Development effort** | Low, straightforward debugging | Higher: explicit kernel mapping, device memory management, synchronization |
+| **Portability** | Universal (standard C99 and any C compiler) | Requires NVIDIA GPU and CUDA Toolkit runtime |
 
 ---
 
@@ -127,7 +150,8 @@ The start grid is pseudo-random with about 30% live cells. Each cell value comes
 ├── presentation/
 │   └── Conways-Game-of-Life-CPU-vs-GPU-Presentation-Group-39.pptx  # Project presentation
 ├── report/
-│   └── GameOfLife_HPC_Report_Group_39.pdf           # Technical report
+│   ├── GameOfLife_HPC_Report_Group_39.pdf           # Technical report (PDF)
+│   └── GameOfLife_HPC_Report_v5.docx                # Technical report source (DOCX)
 └── README.md                                       # Project overview
 ```
 
@@ -203,7 +227,25 @@ The GPU results were compared with the CPU results in several ways:
 2. **Live-cell count**: both programs end with exactly **401,781** live cells after 100 generations.
 3. **Cell-by-cell comparison**: the final CPU and GPU grids differ in **0 cells**, and both have the SHA-256 prefix `c360510d69799c7d`.
 4. **Kernel comparison**: the naive and tiled CUDA kernels give identical grids.
-5. **Frame-by-frame comparison**: the top-left 256 × 256 corner was saved every second generation (0 to 100, 51 frames per program), and **51 of 51** frame pairs are identical byte for byte. The live-cell counts in this corner every 10 generations are also the same for both programs.
+5. **Frame-by-frame comparison**: the top-left 256 × 256 corner was saved every second generation (0 to 100, 51 frames per program), and **51 of 51** frame pairs are identical byte for byte.
+
+### Verification Corner Progression (Top-Left 256 × 256)
+
+Both CPU and CUDA versions produced identical live-cell counts at every 10-generation milestone:
+
+| Generation | CPU Live Cells | GPU Live Cells | Differing Cells |
+| :---: | :---: | :---: | :---: |
+| **0** | 19,696 | 19,696 | 0 |
+| **10** | 14,076 | 14,076 | 0 |
+| **20** | 11,172 | 11,172 | 0 |
+| **30** | 9,742 | 9,742 | 0 |
+| **40** | 8,626 | 8,626 | 0 |
+| **50** | 8,192 | 8,192 | 0 |
+| **60** | 7,795 | 7,795 | 0 |
+| **70** | 7,568 | 7,568 | 0 |
+| **80** | 7,256 | 7,256 | 0 |
+| **90** | 6,785 | 6,785 | 0 |
+| **100** | 6,643 | 6,643 | 0 |
 
 ```
 Verification result
@@ -219,9 +261,13 @@ These checks show that the CUDA programs reproduce the CPU program exactly for t
 
 ## Authors & Acknowledgments
 
-* **Department**: Faculty of Computing, University of Sri Jayewardenepura
-* **Course**: CCS3032 - High Performance Computing
+* **Institution**: Faculty of Computing, University of Sri Jayewardenepura
+* **Degree**: B.Comp (Hons.) in Computer Science
+* **Course**: CCS3032 - High-Performance Computing
+* **Course Lecturer**: Dr. Budditha Hettige
 * **Group**: Group 39
+  * **Y.R. Nisal Sanjaya** — Index: `FC221050` | Reg: `FC116340`
+  * **M.D.S.H. Edirisinghe** — Index: `FC221012` | Reg: `FC115262`
 
 ---
 
