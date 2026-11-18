@@ -196,6 +196,8 @@ When the notebook is run it produces:
 The programs are written by the notebook as `life_cpu.c` and `life_cuda.cu`. Run the notebook cells that write them, or copy the sources from the notebook.
 
 **CPU version**
+
+If you only want the CPU simulation, copy or generate `life_cpu.c` and run the following commands from its directory. This path requires GCC and does not use CUDA.
 ```bash
 gcc -O2 -falign-loops=64 -o life_cpu life_cpu.c
 
@@ -205,6 +207,8 @@ gcc -O2 -falign-loops=64 -o life_cpu life_cpu.c
 ```
 
 **CUDA version**
+
+For the GPU benchmark, use an NVIDIA GPU with the CUDA Toolkit installed and run these commands from the directory containing `life_cuda.cu`.
 ```bash
 # use the compute capability of your GPU (75 = Tesla T4)
 nvcc -O2 -arch=sm_75 -o life_cuda life_cuda.cu
