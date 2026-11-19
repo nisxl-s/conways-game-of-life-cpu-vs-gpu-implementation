@@ -1,4 +1,6 @@
 # Conway's Game of Life - Massive-Scale Parallelism (CPU vs. CUDA)
+
+[Benchmark notebook](cpu%20vs%20gpu%20implementation/hpc-game-of-life-cpu-vs-gpu-test-4.ipynb) · [Technical report (PDF)](report/GameOfLife_HPC_Report_Group_39.pdf) · [Project presentation (PowerPoint)](presentation/Conways-Game-of-Life-CPU-vs-GPU-Presentation-Group-39.pptx)
 ### High Performance Computing (HPC) Benchmarking - Group 39
 
 [![CUDA](https://img.shields.io/badge/CUDA-12.8-76B900?logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-zone)
